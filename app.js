@@ -1,66 +1,98 @@
 const express = require('express');
-const students = require('./students'); // Importar las funciones desde students.js
+const sqlite3 = require('sqlite3').verbose();
+const bodyParser = require('body-parser');
+
 const app = express();
-const PORT = 3000; // Cambiar el puerto a 3000
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 
-app.use(express.json());
-
-// Obtener todos los estudiantes
-app.get('/students', async (req, res) => {
-    try {
-        const allStudents = await students.getAllStudents();
-        res.json(allStudents);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
+// Conexión a la base de datos SQLite
+const db = new sqlite3.Database('./students.sqlite', (err) => {
+    if (err) {
+        console.error('Error al abrir la base de datos:', err.message);
+    } else {
+        console.log('Conectado a la base de datos SQLite.');
     }
 });
 
-// Obtener un estudiante por ID
-app.get('/students/:id', async (req, res) => {
-    try {
-        const student = await students.getStudentById(req.params.id);
-        if (student) {
-            res.json(student);
-        } else {
-            res.status(404).send('Student not found');
-        }
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// Agregar un nuevo estudiante
-app.post('/students', async (req, res) => {
-    try {
+// Ruta para obtener todos los estudiantes o crear uno nuevo
+app.route('/students')
+    .get((req, res) => {
+        const sql = 'SELECT * FROM students';
+        db.all(sql, [], (err, rows) => {
+            if (err) {
+                res.status(400).json({ "error": err.message });
+                return;
+            }
+            res.json({
+                "message": "success",
+                "data": rows
+            });
+        });
+    })
+    .post((req, res) => {
         const { firstname, lastname, gender, age } = req.body;
-        const newStudent = await students.addStudent(firstname, lastname, gender, age);
-        res.status(201).json(newStudent);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        const sql = 'INSERT INTO students (firstname, lastname, gender, age) VALUES (?, ?, ?, ?)';
+        const params = [firstname, lastname, gender, age];
+        db.run(sql, params, function (err) {
+            if (err) {
+                res.status(400).json({ "error": err.message });
+                return;
+            }
+            res.json({
+                "message": "success",
+                "data": { id: this.lastID, firstname, lastname, gender, age }
+            });
+        });
+    });
 
-// Actualizar un estudiante
-app.put('/students/:id', async (req, res) => {
-    try {
+// Ruta para obtener, actualizar o eliminar un estudiante por ID
+app.route('/student/:id')
+    .get((req, res) => {
+        const sql = 'SELECT * FROM students WHERE id = ?';
+        const params = [req.params.id];
+        db.get(sql, params, (err, row) => {
+            if (err) {
+                res.status(400).json({ "error": err.message });
+                return;
+            }
+            res.json({
+                "message": "success",
+                "data": row
+            });
+        });
+    })
+    .put((req, res) => {
         const { firstname, lastname, gender, age } = req.body;
-        const updatedStudent = await students.updateStudent(req.params.id, firstname, lastname, gender, age);
-        res.json(updatedStudent);
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
+        const sql = 'UPDATE students SET firstname = ?, lastname = ?, gender = ?, age = ? WHERE id = ?';
+        const params = [firstname, lastname, gender, age, req.params.id];
+        db.run(sql, params, function (err) {
+            if (err) {
+                res.status(400).json({ "error": err.message });
+                return;
+            }
+            res.json({
+                "message": "success",
+                "data": { id: req.params.id, firstname, lastname, gender, age },
+                "changes": this.changes
+            });
+        });
+    })
+    .delete((req, res) => {
+        const sql = 'DELETE FROM students WHERE id = ?';
+        const params = [req.params.id];
+        db.run(sql, params, function (err) {
+            if (err) {
+                res.status(400).json({ "error": err.message });
+                return;
+            }
+            res.json({
+                "message": "deleted",
+                "changes": this.changes
+            });
+        });
+    });
 
-// Eliminar un estudiante
-app.delete('/students/:id', async (req, res) => {
-    try {
-        await students.deleteStudent(req.params.id);
-        res.status(204).send();
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});
-
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+app.listen(8001, () => {
+    console.log('Servidor escuchando en el puerto 8001');
 });
