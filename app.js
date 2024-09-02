@@ -1,28 +1,12 @@
 const express = require('express');
-const sqlite3 = require('sqlite3').verbose();
+const db = require('./database'); // Importar la conexión a la base de datos
 const bodyParser = require('body-parser');
 
 const app = express();
-const PORT = 8000;
+const PORT = 3000;  // Puerto que coincidirá con la configuración de reglas de entrada
 
-// Middleware para analizar solicitudes `application/x-www-form-urlencoded`
-app.use(bodyParser.urlencoded({ extended: true }));
-
-// Crear conexión a la base de datos SQLite
-const db = new sqlite3.Database('students.sqlite', (err) => {
-  if (err) {
-    console.error(err.message);
-  } else {
-    console.log('Conectado a la base de datos SQLite.');
-    db.run(`CREATE TABLE IF NOT EXISTS students (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        firstname TEXT NOT NULL,
-        lastname TEXT NOT NULL,
-        gender TEXT NOT NULL,
-        age INTEGER NOT NULL
-    )`);
-  }
-});
+// Middleware para analizar solicitudes `application/json`
+app.use(bodyParser.json());
 
 // Ruta para obtener todos los estudiantes o agregar uno nuevo
 app.route('/students')
